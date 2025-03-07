@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flashcard Creator</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>Flashcard Creator</h1>
+
+  <div class="input-section">
+    <input type="text" id="deckName" placeholder="Deck Name">
+    <input type="file" id="imageUpload" accept="image/*">
+    <input type="text" id="backText" placeholder="Back Text">
+    <button onclick="addFlashcard()">Add Flashcard</button>
+    <button onclick="saveDeck()">Save Deck</button>
+    <select id="deckSelect">
+      <option value="">Select a Deck</option>
+    </select>
+    <button onclick="loadDeck()">Load Deck</button>
+  </div>
+
+  <div class="display-section">
+    <button id="prevButton" class="nav-button" onclick="prevFlashcard()">&#9664;</button>
+    <div id="flashcardDisplay" class="flashcard">
+      <div class="flashcard-front"></div>
+      <div class="flashcard-back"></div>
+    </div>
+    <button id="nextButton" class="nav-button" onclick="nextFlashcard()">&#9654;</button>
+  </div>
+
+  <script>
+    let flashcards = [];
+    let currentCardIndex = 0; // Keep track of the currently displayed card
+
+    function addFlashcard() {
+      const backText = document.getElementById('backText').value;
+      const imageUpload = document.getElementById('imageUpload').files[0];
+
+      if (!backText.trim() || !imageUpload) {
+        alert("Please select an image and enter back text.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const imageData = event.target.result;
+        const flashcard = { backText, imageData };
+        flashcards.push(flashcard);
+        // Show the newly added card
+        currentCardIndex = flashcards.length - 1;
+        renderFlashcard();
+      };
+      reader.readAsDataURL(imageUpload);
+      document.getElementById('backText').value = '';
+      document.getElementById('imageUpload').value = '';
+    }
+
+    function renderFlashcard() {
+      const container = document.getElementById('flashcardDisplay');
+      const front = container.querySelector(".flashcard-front");
+      const back = container.querySelector(".flashcard-back");
+
+      if (flashcards.length === 0) {
+        container.classList.remove('flipped'); // Ensure not flipped
+        front.innerHTML = '';
+        back.innerHTML = '';
+        hideControls();
+        return;
+      }
+
+      const flashcard = flashcards[currentCardIndex];
+
+      // Update front (image)
+      front.innerHTML = `<div class="image-wrapper"><img src="${flashcard.imageData}" alt=""></div>`;
+
+      // Update back (text)
+      back.textContent = flashcard.backText;
+      container.classList.remove('flipped'); // Ensure not flipped
+      showControls();
+    }
+
+    // Save deck function (unchanged)
+    async function saveDeck() {
+      const deckName = document.getElementById('deckName').value.trim();
+      if (!deckName) {
+        alert("Please enter a deck name.");
+        return;
+      }
+      if (flashcards.length === 0) {
+        alert("Please add at least one flashcard to the deck.");
+        return;
+      }
+
+      // Here, you would normally send the deck data to your backend.
+      // For this example, we'll just simulate a successful save.
+      alert('Deck saved successfully (simulated)!');
+      flashcards = [];
+      currentCardIndex = 0; // Reset to first card
+      renderFlashcard();
+      document.getElementById('deckName').value = '';
+      populateDeckList(); // Refresh deck list
+    }
+
+    // Modified function to populate the deck list based on the directory listing
+    async function populateDeckList() {
+      try {
+        // Fetch the directory listing from the decks folder
+        const response = await fetch('decks/');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const text = await response.text();
+
+        // Parse the returned HTML to extract file names
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const links = doc.querySelectorAll('a');
+        const decks = [];
+        links.forEach(link => {
+          const href = link.getAttribute('href');
+          // Filter out parent directory links and non-JSON files
+          if (href && href !== '../' && href.endsWith('.json')) {
+            // Remove the .json extension to use as the deck title
+            decks.push(href.replace('.json', ''));
+          }
+        });
+
+        // Update the deck selection dropdown
+        const selectElement = document.getElementById('deckSelect');
+        selectElement.innerHTML = '<option value="">Select a Deck</option>';
+        decks.forEach(deckName => {
+          const option = document.createElement('option');
+          option.value = deckName;
+          option.textContent = deckName;
+          selectElement.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Failed to fetch deck list:', error);
+      }
+    }
+
+    // Load a deck from the local decks folder using the selected deck name
+    async function loadDeck() {
+      const deckName = document.getElementById('deckSelect').value;
+      if (!deckName) {
+        alert("Please select a deck to load.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`decks/${deckName}.json`);
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const deckData = await response.json();
+        flashcards = deckData.flashcards;
+        currentCardIndex = 0; // Start at the first card
+        renderFlashcard();
+        document.getElementById('deckName').value = deckData.deckName;
+      } catch (error) {
+        alert('Failed to load deck: ' + error.message);
+      }
+    }
+
+    function showControls() {
+      document.getElementById("prevButton").style.display = "inline-block";
+      document.getElementById("nextButton").style.display = "inline-block";
+      document.getElementById("flashcardDisplay").style.display = "block";
+    }
+
+    function hideControls() {
+      document.getElementById("prevButton").style.display = "none";
+      document.getElementById("nextButton").style.display = "none";
+      document.getElementById("flashcardDisplay").style.display = "none";
+    }
+
+    function nextFlashcard() {
+      if (currentCardIndex < flashcards.length - 1) {
+        currentCardIndex++;
+        renderFlashcard();
+      }
+    }
+
+    function prevFlashcard() {
+      if (currentCardIndex > 0) {
+        currentCardIndex--;
+        renderFlashcard();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', populateDeckList);
+    document.getElementById('flashcardDisplay').addEventListener('click', function() {
+      this.classList.toggle('flipped');
+    });
+  </script>
+</body>
+</html>
